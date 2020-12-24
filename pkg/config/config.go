@@ -11,8 +11,11 @@ import (
 // Resource can be either Redis (isRedis) or file.
 // URI is either a Redis URI or a file path.
 type Resource struct {
-	URI     string
-	IsRedis bool
+	URI      string
+	DB       int
+	Username string
+	Password string
+	IsRedis  bool
 }
 
 // Config represents the current source and target config.

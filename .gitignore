@@ -1,3 +1,5 @@
-rump-*
+bin/rump
+bin/rump-*
 main
 *.rump
+vendor/

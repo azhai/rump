@@ -16,6 +16,28 @@ import (
 	"github.com/stickermule/rump/pkg/signal"
 )
 
+// Connect redis
+func connect(rsc config.Resource) (*radix.Pool, error) {
+	uri, opts := rsc.URI, []radix.DialOpt{}
+	if rsc.DB > 0 {
+		opts = append(opts, radix.DialSelectDB(rsc.DB))
+	}
+	if rsc.Password != "" {
+		if rsc.Username != "" {
+			opts = append(opts, radix.DialAuthUser(rsc.Username, rsc.Password))
+		} else {
+			opts = append(opts, radix.DialAuthPass(rsc.Password))
+		}
+	}
+	poolOpts := []radix.PoolOpt{}
+	if len(opts) > 0 {
+		poolOpts = append(poolOpts, radix.PoolConnFunc(func(network, addr string) (radix.Conn, error) {
+			return radix.Dial(network, addr, opts...)
+		}))
+	}
+	return radix.NewPool("tcp", uri, 1, poolOpts...)
+}
+
 // Exit helper
 func exit(e error) {
 	fmt.Println(e)
@@ -38,7 +60,7 @@ func Run(cfg config.Config) {
 
 	// Create and run either a Redis or File Source reader.
 	if cfg.Source.IsRedis {
-		db, err := radix.NewPool("tcp", cfg.Source.URI, 1)
+		db, err := connect(cfg.Source)
 		if err != nil {
 			exit(err)
 		}
@@ -58,7 +80,7 @@ func Run(cfg config.Config) {
 
 	// Create and run either a Redis or File Target writer.
 	if cfg.Target.IsRedis {
-		db, err := radix.NewPool("tcp", cfg.Target.URI, 1)
+		db, err := connect(cfg.Target)
 		if err != nil {
 			exit(err)
 		}
