@@ -4,6 +4,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/mediocregopher/radix/v3"
 
@@ -64,17 +65,55 @@ func (r *Redis) maybeTTL(key string) (string, error) {
 	return ttl, nil
 }
 
+// ReadKeys use command KEYS instead of SCAN.
+func (r *Redis) ReadKeys(ctx context.Context, pattern string) error {
+	var keys []string
+	err := r.Pool.Do(radix.Cmd(&keys, "KEYS", pattern))
+	if err != nil {
+		return err
+	}
+
+	var value string
+	var ttl string
+	for _, key := range keys {
+		err = r.Pool.Do(radix.Cmd(&value, "DUMP", key))
+		if err != nil {
+			return err
+		}
+
+		ttl, err = r.maybeTTL(key)
+		if err != nil {
+			return err
+		}
+
+		select {
+		case <-ctx.Done():
+			fmt.Println("")
+			fmt.Println("redis read: exit")
+			return ctx.Err()
+		case r.Bus <- message.Payload{Key: key, Value: value, TTL: ttl}:
+			r.maybeLog("r")
+		}
+	}
+	return nil
+}
+
 // Read gently scans an entire Redis DB for keys, then dumps
 // the key/value pair (Payload) on the message Bus channel.
 // It leverages implicit pipelining to speedup large DB reads.
 // To be used in an ErrGroup.
 func (r *Redis) Read(ctx context.Context) error {
 	defer close(r.Bus)
+	match := strings.ToUpper(strings.TrimSpace(r.Match))
+	if strings.HasPrefix(match, "KEYS ") {
+		return r.ReadKeys(ctx, r.Match[5:])
+	}
+
 	var opts radix.ScanOpts
 	if r.Match == "" {
 		opts = radix.ScanAllKeys
 	} else {
-		opts = radix.ScanOpts{Command: "HSCAN", Key: r.Match}
+		opts = radix.ScanOpts{Command: "SCAN", Pattern: r.Match}
 	}
 	scanner := radix.NewScanner(r.Pool, opts)
 
