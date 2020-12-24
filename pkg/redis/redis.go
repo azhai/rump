@@ -16,15 +16,17 @@ import (
 type Redis struct {
 	Pool   *radix.Pool
 	Bus    message.Bus
+	Match  string
 	Silent bool
 	TTL    bool
 }
 
 // New creates the Redis struct, used to read/write.
-func New(source *radix.Pool, bus message.Bus, silent, ttl bool) *Redis {
+func New(source *radix.Pool, bus message.Bus, match string, silent, ttl bool) *Redis {
 	return &Redis{
 		Pool:   source,
 		Bus:    bus,
+		Match:  match,
 		Silent: silent,
 		TTL:    ttl,
 	}
@@ -68,8 +70,13 @@ func (r *Redis) maybeTTL(key string) (string, error) {
 // To be used in an ErrGroup.
 func (r *Redis) Read(ctx context.Context) error {
 	defer close(r.Bus)
-
-	scanner := radix.NewScanner(r.Pool, radix.ScanAllKeys)
+	var opts radix.ScanOpts
+	if r.Match == "" {
+		opts = radix.ScanAllKeys
+	} else {
+		opts = radix.ScanOpts{Command: "HSCAN", Key: r.Match}
+	}
+	scanner := radix.NewScanner(r.Pool, opts)
 
 	var key string
 	var value string

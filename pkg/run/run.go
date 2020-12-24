@@ -65,13 +65,13 @@ func Run(cfg config.Config) {
 			exit(err)
 		}
 
-		source := redis.New(db, ch, cfg.Silent, cfg.TTL)
+		source := redis.New(db, ch, cfg.Match, !cfg.Verbose, cfg.TTL)
 
 		g.Go(func() error {
 			return source.Read(gctx)
 		})
 	} else {
-		source := file.New(cfg.Source.URI, ch, cfg.Silent, cfg.TTL)
+		source := file.New(cfg.Source.URI, ch, !cfg.Verbose, cfg.TTL)
 
 		g.Go(func() error {
 			return source.Read(gctx)
@@ -85,14 +85,14 @@ func Run(cfg config.Config) {
 			exit(err)
 		}
 
-		target := redis.New(db, ch, cfg.Silent, cfg.TTL)
+		target := redis.New(db, ch, cfg.Match, !cfg.Verbose, cfg.TTL)
 
 		g.Go(func() error {
 			defer cancel()
 			return target.Write(gctx)
 		})
 	} else {
-		target := file.New(cfg.Target.URI, ch, cfg.Silent, cfg.TTL)
+		target := file.New(cfg.Target.URI, ch, !cfg.Verbose, cfg.TTL)
 
 		g.Go(func() error {
 			defer cancel()
